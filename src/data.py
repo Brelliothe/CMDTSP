@@ -6,7 +6,7 @@ import osmnx as ox
 import pickle
 import re
 from tqdm import tqdm
-from utils import euclidean, haversine, compute_distance_on_graph
+from src.utils import euclidean, haversine, compute_distance_on_graph
 
 
 path = "../datasets"
