@@ -95,7 +95,7 @@ def plot_figures():
 
 
 if __name__ == '__main__':
-    prepare_data()
+    prepare_data(1000)
     run_baselines()
     run_ablations()
     plot_figures()
