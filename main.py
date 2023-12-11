@@ -11,9 +11,9 @@ import time
 from tqdm import tqdm
 
 
-def evaluate_baseline(name, d, c, s, g, distance, full, limit):
+def evaluate_baseline(name, d, c, s, g, distance, full, limit, method='lkh'):
     if name == 'Hierarchical Pipeline':
-        baseline = PTC(d, c, s, g, distance, full, limit)
+        baseline = PTC(d, c, s, g, distance, full, limit, method=method)
     elif name == 'Variable Neighborhood Search':
         baseline = VNS(d, c, s, g, distance, full, limit)
     elif name == 'Evolutionary Algorithm':
@@ -86,8 +86,42 @@ def run_baselines(num=1000):
                   f"with feasibility rate {sum(stats[name]['Feasible']) / num:.2f} on dataset {filename}")
 
 
-def run_ablations():
+def run_ablation_tsp():
+    with open('datasets/random.pickle', 'rb') as f:
+        dataset = pickle.load(f)
+    graph, full, limit = nx.Graph(), 1, 2
+    stats = {'lkh': {"Length": [], "Time": []}, 'exact': {"Length": [], "Time": []}, 'appr': {"Length": [], "Time": []},
+             'meta': {"Length": [], "Time": []}, 'neural': {"Length": [], "Time": []}}
+    for data in tqdm(dataset):
+        d, c, s, distance = data
+        depots, cities, stations = np.array(d), np.array(c), np.array(s)
+        locations = np.concatenate((depots, cities, stations))
+        for i in range(len(locations)):
+            graph.add_node(i, pos=locations[i].tolist())
+        for i in range(len(locations)):
+            for j in range(i, len(locations)):
+                graph.add_edge(i, j, weight=distance[i][j])
+        depots = np.array([i for i in range(len(depots))])
+        cities = np.array([i + len(depots) for i in range(len(cities))])
+        stations = np.array([i + len(depots) + len(cities) for i in range(len(stations))])
+        for method in ['lkh', 'exact', 'appr', 'meta']:
+            name = 'Hierarchical Pipeline'
+            running_time, tour_length, _ = \
+                evaluate_baseline(name, depots, cities, stations, graph, distance, full, limit, method)
+            stats[method]['Time'].append(running_time)
+            stats[method]['Length'].append(tour_length)
+
+    with open(f'datasets/ablation_tsp_stat.pickle', 'wb') as f:
+        pickle.dump(stats, f)
+
+
+def run_ablation_partition():
     pass
+
+
+def run_ablations():
+    run_ablation_tsp()
+    run_ablation_partition()
 
 
 def plot_figures():

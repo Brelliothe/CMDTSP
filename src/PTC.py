@@ -5,21 +5,27 @@ import gurobipy as gp
 from gurobipy import GRB
 from itertools import islice
 import networkx as nx
+from networkx.algorithms import approximation
 import numpy as np
+from python_tsp.heuristics import solve_tsp_local_search, solve_tsp_simulated_annealing
 
 
 class PTC(Baseline):
-    def __init__(self, depots, cities, stations, graph, distance, full, limit):
+    def __init__(self, depots, cities, stations, graph, distance, full, limit, method='lkh'):
         super().__init__(depots, cities, stations, graph, distance, full, limit, 'Hierarchical Pipeline')
         self.k = 10
         self.group = []
         self.lb, self.ub = 0, 1000
         self.shortest_paths = {}
+        self.method = method
+        if method == 'neural':
+            import torch
+            self.model = load_model('models/gat/pretrained/tsp_50/').cuda()
+            self.model.set_decode_type("sampling", temp=1)
 
     def partition(self):
         """
         allocate the cities to salesman by partition the minimum spanning tree
-        :return: (stations, depots, cities) with matched depots and cities
         """
         # find the minimum spanning tree
         graph = nx.Graph()
@@ -159,6 +165,91 @@ class PTC(Baseline):
             if node not in self.depots:
                 self.group[tree.nodes[node]['group']].append(node)
 
+    def christofides(self, group):
+        if len(group) == 1:
+            return [group[0], group[0]]
+        elif len(group) == 2:
+            return [group[0], group[1], group[0]]
+        else:
+            graph = nx.Graph()
+            for i in group:
+                for j in group:
+                    graph.add_edge(i, j, weight=self.distance[i][j])
+            return approximation.christofides(graph)
+
+    def exact(self, group):
+        size = len(group)
+        model = gp.Model('TSP')
+        model.setParam(GRB.Param.OutputFlag, 0)
+        edges = model.addVars(size, size, vtype=GRB.BINARY, name='edges')
+        flows = model.addVars(size, size, vtype=GRB.CONTINUOUS, name='flows')
+        # no self loop
+        model.addConstrs(edges[i, i] == 0 for i in range(size))
+        model.addConstrs(flows[i, i] == 0 for i in range(size))
+        # one in and one out
+        model.addConstrs(gp.quicksum([edges[i, j] for i in range(size)]) == 1 for j in range(size))
+        model.addConstrs(gp.quicksum([edges[i, j] for j in range(size)]) == 1 for i in range(size))
+        # initial number of items
+        model.addConstr(gp.quicksum([flows[0, j] for j in range(size)]) == size - 1)
+        # drop one item at each loc
+        model.addConstrs(
+            gp.quicksum([flows[i, j] for i in range(size)]) - gp.quicksum([flows[j, k] for k in range(size)])
+            == 1 for j in range(1, size))
+        # set the upper bound of loc
+        model.addConstrs(flows[i, j] <= edges[i, j] * (size - 1) for i in range(size) for j in range(size))
+        # minimize the total length
+        model.setObjective(gp.quicksum([edges[i, j] * self.distance[group[i]][group[j]] for i in range(size)
+                                        for j in range(size) if j != i]))
+        model.optimize()
+        tour = [0 for _ in group]
+        for key in edges.keys():
+            if edges[key].x > 0.5:
+                tour[key[0]] = key[1]
+        visit = [0]
+        for _ in group:
+            visit.append(tour[visit[-1]])
+        return [group[i] for i in visit]
+
+    def simulated_annealing(self, group):
+        distance_matrix = np.array([[self.distance[j][i] for i in group] for j in group])
+        visit, _ = solve_tsp_simulated_annealing(distance_matrix)
+        visit, _ = solve_tsp_local_search(distance_matrix, x0=visit, perturbation_scheme="ps3")
+        return [group[i] for i in visit] + [group[0]]
+
+    def neural(self, group):
+        import torch
+        import math
+
+        def get_best(sequences, cost, ids=None, batch_size=None):
+            if ids is None:
+                idx = cost.argmin()
+                return sequences[idx:idx + 1, ...], cost[idx:idx + 1, ...]
+
+            splits = np.hstack([0, np.where(ids[:-1] != ids[1:])[0] + 1])
+            mincosts = np.minimum.reduceat(cost, splits)
+
+            group_lengths = np.diff(np.hstack([splits, len(ids)]))
+            all_argmin = np.flatnonzero(np.repeat(mincosts, group_lengths) == cost)
+            result = np.full(len(group_lengths) if batch_size is None else batch_size, -1, dtype=int)
+
+            result[ids[all_argmin[::-1]]] = all_argmin[::-1]
+
+            return [sequences[i] if i >= 0 else None for i in result], [cost[i] if i >= 0 else math.inf for i in result]
+
+        sequences, costs = self.model.sample_many(torch.tensor([self.graph.nodes[i]['pos'] for i in group],
+                                                               dtype=torch.float32).unsqueeze(0).cuda(),
+                                                  batch_rep=1280, iter_rep=1)
+        ids = torch.arange(1, dtype=torch.int64, device=costs.device)
+        if sequences is None:
+            sequences = [None] * 1
+        else:
+            sequences, _ = get_best(
+                sequences.cpu().numpy(), costs.cpu().numpy(),
+                ids.cpu().numpy() if ids is not None else None,
+                1
+            )
+        return sequences[0].tolist()
+
     def get_shortest_paths(self):
         graph = nx.Graph()
         for i in self.stations:
@@ -269,11 +360,14 @@ class PTC(Baseline):
         return solution, cost
 
     def solve(self):
+        partitioner = {}
         self.partition()
         self.get_shortest_paths()
         paths, proposal, price, power = [], [], [], []
         for group in self.group:
-            visit = self.lkh(group)
+            tsp_solver = {'lkh': self.lkh, 'appr': self.christofides, 'exact': self.exact,
+                          'meta': self.simulated_annealing, 'neural': self.neural}[self.method]
+            visit = tsp_solver(group)
             path, cost, energy = self.heuristic_search(visit)
             paths.append(path)
             proposal.append([[[1 if s in path[i][j] else 0 for s in self.stations] for j in range(self.k)] for i in
