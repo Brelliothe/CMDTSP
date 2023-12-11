@@ -1,6 +1,6 @@
 # baseline of evolutionary algorithm from https://doi.org/10.3390/su12052127
 
-from baseline import Baseline
+from src.baseline import Baseline
 import copy
 import numpy as np
 import time

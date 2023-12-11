@@ -1,4 +1,4 @@
-from baseline import Baseline
+from src.baseline import Baseline
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np

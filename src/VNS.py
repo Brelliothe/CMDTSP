@@ -1,6 +1,6 @@
 # https://doi.org/10.1016/j.tre.2021.102293
 
-from baseline import Baseline
+from src.baseline import Baseline
 import copy
 import numpy as np
 import time

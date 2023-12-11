@@ -1,5 +1,5 @@
 # implementation of baseline from https://doi.org/10.1007/978-981-13-0860-4_19
-from baseline import Baseline
+from src.baseline import Baseline
 import numpy as np
 
 
