@@ -47,7 +47,7 @@ def run_baselines(num=1000):
             if 'mdvrp' in filename else nx.Graph()
         full = 4 if 'manhattan' in filename or 'mdvrp' in filename else 40 if 'cambridge' in filename else 1
         limit = 2
-        for data in tqdm(dataset[1:min(num, len(dataset))]):
+        for data in tqdm(dataset[:min(num, len(dataset))]):
             d, c, s, distance = data
             depots, cities, stations = np.array(d), np.array(c), np.array(s)
             if 'random' in filename:
@@ -95,7 +95,7 @@ def plot_figures():
 
 
 if __name__ == '__main__':
-    prepare_data(1)
-    run_baselines(1)
+    prepare_data(1000)
+    run_baselines(1000)
     run_ablations()
     plot_figures()
