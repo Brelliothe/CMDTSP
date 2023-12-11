@@ -9,7 +9,8 @@ from tqdm import tqdm
 from src.utils import euclidean, haversine, compute_distance_on_graph
 
 
-path = "../datasets"
+path = "datasets"
+
 
 def manhattan():
     g = nx.MultiGraph(nx.read_graphml(path + '/nyc.graphml'))
