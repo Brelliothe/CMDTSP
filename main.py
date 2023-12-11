@@ -6,7 +6,7 @@ from src.EA import EA
 from src.MILP import MILP
 from src.VNS import VNS
 from src.PTC import PTC
-from src.data import manhattan, boston, md_vrp
+from src.data import manhattan, boston, md_vrp, prepare_data
 import time
 from tqdm import tqdm
 
@@ -95,6 +95,7 @@ def plot_figures():
 
 
 if __name__ == '__main__':
+    prepare_data()
     run_baselines()
     run_ablations()
     plot_figures()
