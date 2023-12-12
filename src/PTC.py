@@ -178,6 +178,10 @@ class PTC(Baseline):
             return approximation.christofides(graph)
 
     def exact(self, group):
+        if len(group) == 1:
+            return [group[0], group[0]]
+        elif len(group) == 2:
+            return [group[0], group[1], group[0]]
         size = len(group)
         model = gp.Model('TSP')
         model.setParam(GRB.Param.OutputFlag, 0)
@@ -211,12 +215,21 @@ class PTC(Baseline):
         return [group[i] for i in visit]
 
     def simulated_annealing(self, group):
+        if len(group) == 1:
+            return [group[0], group[0]]
+        elif len(group) == 2:
+            return [group[0], group[1], group[0]]
         distance_matrix = np.array([[self.distance[j][i] for i in group] for j in group])
         visit, _ = solve_tsp_simulated_annealing(distance_matrix)
         visit, _ = solve_tsp_local_search(distance_matrix, x0=visit, perturbation_scheme="ps3")
         return [group[i] for i in visit] + [group[0]]
 
     def neural(self, group):
+        if len(group) == 1:
+            return [group[0], group[0]]
+        elif len(group) == 2:
+            return [group[0], group[1], group[0]]
+
         import torch
         import math
 

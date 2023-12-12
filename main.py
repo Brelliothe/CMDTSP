@@ -104,7 +104,7 @@ def run_ablation_tsp():
         depots = np.array([i for i in range(len(depots))])
         cities = np.array([i + len(depots) for i in range(len(cities))])
         stations = np.array([i + len(depots) + len(cities) for i in range(len(stations))])
-        for method in ['lkh', 'exact', 'appr', 'meta', 'neural']:
+        for method in ['lkh', 'exact', 'appr', 'meta']:
             name = 'Hierarchical Pipeline'
             running_time, tour_length, _ = \
                 evaluate_baseline(name, depots, cities, stations, graph, distance, full, limit, method)
@@ -147,12 +147,7 @@ def run_ablations():
     run_ablation_partition()
 
 
-def plot_figures():
-    pass
-
-
 if __name__ == '__main__':
     prepare_data(1000)
     run_baselines(1000)
     run_ablations()
-    plot_figures()

@@ -196,7 +196,8 @@ class EA(Baseline):
                         value = self.solution_cost(solution)
                         optimal = copy.deepcopy(solution)
                     tour.pop(i)
-            solution = copy.deepcopy(optimal)
+            solution = copy.deepcopy(optimal) if optimal is not None else solution
+
         return solution
 
     def solution_cost(self, solution):
