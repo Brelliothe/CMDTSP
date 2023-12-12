@@ -11,7 +11,7 @@ import time
 from tqdm import tqdm
 
 
-def evaluate_baseline(name, d, c, s, g, distance, full, limit, method='lkh'):
+def evaluate_baseline(name, d, c, s, g, distance, full, limit, method='lkh', part='mtsp'):
     if name == 'Hierarchical Pipeline':
         baseline = PTC(d, c, s, g, distance, full, limit, method=method)
     elif name == 'Variable Neighborhood Search':
@@ -104,7 +104,7 @@ def run_ablation_tsp():
         depots = np.array([i for i in range(len(depots))])
         cities = np.array([i + len(depots) for i in range(len(cities))])
         stations = np.array([i + len(depots) + len(cities) for i in range(len(stations))])
-        for method in ['lkh', 'exact', 'appr', 'meta']:
+        for method in ['lkh', 'exact', 'appr', 'meta', 'neural']:
             name = 'Hierarchical Pipeline'
             running_time, tour_length, _ = \
                 evaluate_baseline(name, depots, cities, stations, graph, distance, full, limit, method)
@@ -116,7 +116,30 @@ def run_ablation_tsp():
 
 
 def run_ablation_partition():
-    pass
+    with open('datasets/random.pickle', 'rb') as f:
+        dataset = pickle.load(f)
+    graph, full, limit = nx.Graph(), 1, 2
+    stats = {'mtsp': {"Length": []}, 'nn': {"Length": []}, 'kmean': {"Length": []}}
+    for data in tqdm(dataset):
+        d, c, s, distance = data
+        depots, cities, stations = np.array(d), np.array(c), np.array(s)
+        locations = np.concatenate((depots, cities, stations))
+        for i in range(len(locations)):
+            graph.add_node(i, pos=locations[i].tolist())
+        for i in range(len(locations)):
+            for j in range(i, len(locations)):
+                graph.add_edge(i, j, weight=distance[i][j])
+        depots = np.array([i for i in range(len(depots))])
+        cities = np.array([i + len(depots) for i in range(len(cities))])
+        stations = np.array([i + len(depots) + len(cities) for i in range(len(stations))])
+        for part in ['mtsp', 'nn', 'kmean']:
+            name = 'Hierarchical Pipeline'
+            _, tour_length, _ = \
+                evaluate_baseline(name, depots, cities, stations, graph, distance, full, limit, method='lkh', part=part)
+            stats[part]['Length'].append(tour_length)
+
+    with open(f'datasets/ablation_partition_stat.pickle', 'wb') as f:
+        pickle.dump(stats, f)
 
 
 def run_ablations():
